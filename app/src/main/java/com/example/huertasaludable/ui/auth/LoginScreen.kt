@@ -35,6 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.huertasaludable.data.local.entity.UsuarioEntity
+import kotlin.math.sin
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -63,6 +65,8 @@ fun LoginScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var passwordVisible by remember { mutableStateOf(false) }
+    var creandoCuenta by remember { mutableStateOf(false) }
+    var nombre by remember { mutableStateOf("") }
 
     LaunchedEffect(uiState.isSuccess, uiState.usuarioLogueado) {
         if (uiState.isSuccess && uiState.usuarioLogueado != null) {
@@ -137,6 +141,19 @@ fun LoginScreen(
                             textAlign = TextAlign.Center
                         )
                     }
+                }
+
+                // Creando cuenta
+
+                if (creandoCuenta){
+                    OutlinedTextField(
+                        value = nombre,
+                        onValueChange = { nombre = it },
+                        label = { Text("Nombre")},
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 // Campo Email
@@ -215,7 +232,17 @@ fun LoginScreen(
 
                 // Botón Iniciar Sesión
                 Button(
-                    onClick = { viewModel.iniciarSesion() },
+                    onClick = {
+                        if (creandoCuenta) {
+                            viewModel.registrarColaborador(
+                                nombre = nombre,
+                                email = uiState.email,
+                                password = uiState.password
+                            )
+                        } else {
+                            viewModel.iniciarSesion()
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -229,13 +256,25 @@ fun LoginScreen(
                         )
                     } else {
                         Text(
-                            text = "Iniciar Sesión",
+                            text = if (creandoCuenta) "Crear cuenta" else "Iniciar Sesión",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))
+
+                //Crear cuenta
+
+                TextButton(
+                    onClick = { creandoCuenta = !creandoCuenta }
+                ) {
+                    Text(
+                        if (creandoCuenta) "Ya tengo cuenta: iniciar sesión"
+                        else "¿No tienes cuenta? Crear cuenta"
+                    )
+                }
+
 
                 // Atajos Cuentas de Prueba
                 Text(

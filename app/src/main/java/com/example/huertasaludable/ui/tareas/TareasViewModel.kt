@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.huertasaludable.data.model.Rol
+import com.example.huertasaludable.session.UserSessionManager
 
 data class TareaFormUiState(
     val id: Long = 0,
@@ -49,6 +51,18 @@ data class TareaReviewUiState(
 )
 
 class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
+
+    private fun esAdministradorAutenticado(usuarioId: Long): Boolean{
+        val usuario = UserSessionManager.currentUser.value ?: return false
+        return usuario.id == usuarioId && usuario.rol == Rol.ADMIN
+    }
+
+    private fun esColaboradorAsignado(tarea: TareaEntity, usuarioId: Long):Boolean{
+        val usuario = UserSessionManager.currentUser.value ?: return false
+        return usuario.id == usuarioId&&
+                usuario.rol == Rol.COLABORADOR &&
+                tarea.estudianteId == usuario.id
+    }
 
     val tareas = repository.getTareas().stateIn(
         scope = viewModelScope,
@@ -108,8 +122,9 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
     fun onTipoChanged(tipo: TipoTarea) {
         _formState.update { it.copy(tipo = tipo) }
     }
-
-    fun onDescripcionChanged(value: String) {
+    fun onFechaProgramadaChanged(fecha: Long) {
+        _formState.update { it.copy(fechaProgramada = fecha) }
+    }    fun onDescripcionChanged(value: String) {
         _formState.update {
             it.copy(
                 descripcion = value,
@@ -151,6 +166,7 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
 
         if (hasError) return
 
+        if (!esAdministradorAutenticado(docenteId)) return
         viewModelScope.launch {
             _formState.update { it.copy(isLoading = true) }
             val tarea = TareaEntity(
@@ -183,6 +199,9 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
     }
 
     fun iniciarTarea(tarea: TareaEntity, usuarioId: Long) {
+        if (!esColaboradorAsignado(tarea, usuarioId) ||
+            tarea.estado != EstadoTarea.PENDIENTE
+        )return
         viewModelScope.launch {
             val tareaActualizada = tarea.copy(
                 estado = EstadoTarea.EN_DESARROLLO,
@@ -228,6 +247,10 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
 
         if (hasError) return
 
+        if(!esColaboradorAsignado(tarea, usuarioId) ||
+            (tarea.estado != EstadoTarea.EN_DESARROLLO &&
+                    tarea.estado != EstadoTarea.RECHAZADA)
+            )return
         viewModelScope.launch {
             _deliveryState.update { it.copy(isLoading = true) }
             val tareaActualizada = tarea.copy(
@@ -257,6 +280,10 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
     }
 
     fun aprobarTarea(tarea: TareaEntity, docenteId: Long) {
+        if (!esAdministradorAutenticado(docenteId) ||
+            tarea.estudianteId == docenteId ||
+            tarea.estado != EstadoTarea.PENDIENTE_VALIDACION
+        )return
         viewModelScope.launch {
             _reviewState.update { it.copy(isLoading = true) }
             val tareaActualizada = tarea.copy(
@@ -283,7 +310,10 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
             _reviewState.update { it.copy(motivoRechazoError = "Debes ingresar un motivo obligatorio para rechazar la tarea") }
             return
         }
-
+        if (!esAdministradorAutenticado(docenteId) ||
+            tarea.estudianteId == docenteId ||
+            tarea.estado != EstadoTarea.PENDIENTE_VALIDACION
+        )return
         viewModelScope.launch {
             _reviewState.update { it.copy(isLoading = true) }
             val tareaActualizada = tarea.copy(

@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.huertasaludable.data.model.Rol
+import android.util.Patterns
 
 data class LoginUiState(
     val email: String = "",
@@ -27,6 +29,10 @@ class AuthViewModel(private val repository: HuertaRepository) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
+
+    fun limpiarEstadoSesion() {
+        _uiState.value = LoginUiState()
+    }
 
     fun onEmailChanged(newEmail: String) {
         _uiState.update {
@@ -114,7 +120,66 @@ class AuthViewModel(private val repository: HuertaRepository) : ViewModel() {
             }
         }
     }
+    fun registrarColaborador(nombre: String, email: String, password: String){
+        val nombreLimpio = nombre.trim()
+        val emailLimpio = email.trim()
+        val passwordLimpia = password.trim()
 
+        if (nombreLimpio.isBlank() ||emailLimpio.isBlank() || passwordLimpia.isBlank()){
+            _uiState.update {
+                it.copy(
+                    generalError = "Completa todos los campos",
+                    isSuccess = false
+                )
+            }
+            return
+        }
+        if (!Patterns.EMAIL_ADDRESS.matcher(emailLimpio).matches()) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    generalError = "Ingresa un correo válido"
+                )
+            }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, generalError = null) }
+
+            val usuarioExistente = repository.getUsuarioByEmail(emailLimpio)
+
+            if (usuarioExistente != null) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        generalError = "Ya existe una cuenta con ese correo"
+                    )
+                }
+                return@launch
+            }
+
+            val nuevoUsuario = UsuarioEntity(
+                nombre = nombreLimpio,
+                email = emailLimpio,
+                password = passwordLimpia,
+                rol = Rol.COLABORADOR,
+                tallerGrupo = "Taller Escolar"
+            )
+
+            val nuevoId = repository.insertUsuario(nuevoUsuario)
+            val usuarioRegistrado = nuevoUsuario.copy(id = nuevoId)
+
+            UserSessionManager.login(usuarioRegistrado)
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isSuccess = true,
+                    usuarioLogueado = usuarioRegistrado,
+                    generalError = null
+                )
+            }
+        }
+    }
     class Factory(private val repository: HuertaRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

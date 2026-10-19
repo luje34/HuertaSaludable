@@ -77,9 +77,11 @@ fun NavGraph(
                 onNavigateToSensores = { navController.navigate(Screen.Sensores.route) },
                 onNavigateToHistorial = { navController.navigate(Screen.Historial.route) },
                 onLogout = {
+                    authViewModel.limpiarEstadoSesion()
                     UserSessionManager.logout()
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
+                        popUpTo(Screen.AdminDashboard.route) { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
             )
@@ -90,9 +92,11 @@ fun NavGraph(
                 onNavigateToMisTareas = { navController.navigate(Screen.StudentTasks.route) },
                 onNavigateToReportarProblema = { navController.navigate(Screen.ReportarProblema.route) },
                 onLogout = {
+                    authViewModel.limpiarEstadoSesion()
                     UserSessionManager.logout()
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
+                        popUpTo(Screen.StudentDashboard.route) { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
             )
