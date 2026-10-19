@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.huertasaludable.data.model.Rol
+import com.example.huertasaludable.session.UserSessionManager
 
 data class ReporteFormUiState(
     val tipo: TipoProblema = TipoProblema.FALTA_AGUA,
@@ -29,6 +31,10 @@ data class ReporteFormUiState(
 
 class ProblemasViewModel(private val repository: HuertaRepository) : ViewModel() {
 
+    private fun esAdministradorAutenticado(usuarioId: Long): Boolean{
+        val usuario = UserSessionManager.currentUser.value ?: return false
+        return usuario.id == usuarioId && usuario.rol == Rol.ADMIN
+    }
     val reportes = repository.getReportes().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -82,6 +88,7 @@ class ProblemasViewModel(private val repository: HuertaRepository) : ViewModel()
     }
 
     fun guardarReporte(usuarioId: Long) {
+        if (UserSessionManager.currentUser.value?.id != usuarioId) return
         val state = _formState.value
         val descripcion = state.descripcion.trim()
 
@@ -114,6 +121,7 @@ class ProblemasViewModel(private val repository: HuertaRepository) : ViewModel()
     }
 
     fun cambiarEstadoReporte(reporte: ReporteProblemaEntity, nuevoEstado: EstadoProblema, comentarioDocente: String?, usuarioId: Long) {
+        if (!esAdministradorAutenticado(usuarioId))return
         viewModelScope.launch {
             val reporteActualizado = reporte.copy(
                 estado = nuevoEstado,

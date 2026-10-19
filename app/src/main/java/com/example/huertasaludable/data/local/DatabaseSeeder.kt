@@ -18,6 +18,7 @@ import com.example.huertasaludable.data.model.TipoTarea
 object DatabaseSeeder {
 
     suspend fun seed(db: AppDatabase) {
+        if (db.usuarioDao().getUsuarioByEmail("docente@huerta.cl") != null) return
         val usuarioDao = db.usuarioDao()
         val sectorDao = db.sectorDao()
         val cultivoDao = db.cultivoDao()

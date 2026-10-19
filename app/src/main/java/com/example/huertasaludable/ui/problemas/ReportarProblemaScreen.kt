@@ -46,6 +46,13 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.huertasaludable.data.model.TipoProblema
 import com.example.huertasaludable.session.UserSessionManager
+import android.graphics.Bitmap
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import android.content.Intent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +61,7 @@ fun ReportarProblemaScreen(
     onSaveSuccess: () -> Unit,
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val formState by viewModel.formState.collectAsState()
     val sectores by viewModel.sectores.collectAsState()
     val cultivos by viewModel.cultivos.collectAsState()
@@ -66,9 +74,54 @@ fun ReportarProblemaScreen(
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
-        uri?.let { viewModel.onFotografiaSelected(it.toString()) }
+        uri?.let { selectedUri ->
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    selectedUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                viewModel.onFotografiaSelected(selectedUri.toString())
+            } catch (error: SecurityException) {
+                Toast.makeText(
+                    context,
+                    "No se pudo conservar el acceso a la foto. Intenta elegirla otra vez.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            val directory = File(context.filesDir, "evidencias")
+            val photoFile = File(
+                directory,
+                "reporte_${System.currentTimeMillis()}.jpg"
+            )
 
+            try {
+                if (!directory.exists() && !directory.mkdirs()) {
+                    throw IOException("No se pudo crear la carpeta de evidencias")
+                }
+
+                FileOutputStream(photoFile).use { output ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
+                        throw IOException("No se pudo guardar la imagen")
+                    }
+                }
+
+                viewModel.onFotografiaSelected(Uri.fromFile(photoFile).toString())
+            } catch (error: IOException) {
+                photoFile.delete()
+                Toast.makeText(
+                    context,
+                    "No se pudo guardar la foto: ${error.localizedMessage}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
     LaunchedEffect(formState.isSaved) {
         if (formState.isSaved) {
             onSaveSuccess()
@@ -266,7 +319,12 @@ fun ReportarProblemaScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Adjuntar Foto (Photo Picker)")
             }
-
+            OutlinedButton(
+                onClick = { cameraLauncher.launch(null) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Tomar foto con la cámara")
+            }
             Spacer(modifier = Modifier.height(28.dp))
 
             Button(

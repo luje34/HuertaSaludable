@@ -48,6 +48,14 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.huertasaludable.data.model.EstadoCultivo
 import com.example.huertasaludable.session.UserSessionManager
+import android.graphics.Bitmap
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +66,7 @@ fun CultivoFormScreen(
     onSaveSuccess: () -> Unit,
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val formState by viewModel.formState.collectAsState()
     val sectores by viewModel.sectores.collectAsState()
     val currentUser by UserSessionManager.currentUser.collectAsState()
@@ -68,9 +77,54 @@ fun CultivoFormScreen(
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
-        uri?.let { viewModel.onFotografiaSelected(it.toString()) }
+        uri?.let { selectedUri ->
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    selectedUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                viewModel.onFotografiaSelected(selectedUri.toString())
+            } catch (error: SecurityException) {
+                Toast.makeText(
+                    context,
+                    "No se pudo conservar el acceso a la foto. Intenta elegirla otra vez.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            val directory = File(context.filesDir, "evidencias")
+            val photoFile = File(
+                directory,
+                "cultivo_${cultivoId}_${System.currentTimeMillis()}.jpg"
+            )
 
+            try {
+                if (!directory.exists() && !directory.mkdirs()) {
+                    throw IOException("No se pudo crear la carpeta de evidencias")
+                }
+
+                FileOutputStream(photoFile).use { output ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
+                        throw IOException("No se pudo guardar la imagen")
+                    }
+                }
+
+                viewModel.onFotografiaSelected(Uri.fromFile(photoFile).toString())
+            } catch (error: IOException) {
+                photoFile.delete()
+                Toast.makeText(
+                    context,
+                    "No se pudo guardar la foto: ${error.localizedMessage}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
     LaunchedEffect(cultivoId) {
         viewModel.cargarCultivoParaEditar(cultivoId, sectorIdInicial)
     }
@@ -261,7 +315,9 @@ fun CultivoFormScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (!formState.fotografiaUri.isNullOrEmpty()) {
+            AnimatedVisibility(
+                visible = !formState.fotografiaUri.isNullOrEmpty()
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -295,6 +351,12 @@ fun CultivoFormScreen(
                     Icon(Icons.Default.PhotoLibrary, contentDescription = null)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text("Galería (Photo Picker)", style = MaterialTheme.typography.bodySmall)
+                }
+                OutlinedButton(
+                    onClick = { cameraLauncher.launch(null) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cámara", style = MaterialTheme.typography.bodySmall)
                 }
             }
 

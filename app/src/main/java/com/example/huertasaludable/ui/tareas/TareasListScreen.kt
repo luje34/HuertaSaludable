@@ -49,6 +49,10 @@ import com.example.huertasaludable.session.UserSessionManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material3.FilterChip
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,16 +68,65 @@ fun TareasListScreen(
     val isAdmin = currentUser?.rol == Rol.ADMIN
 
     var selectedFilterIndex by remember { mutableStateOf(0) }
+    var selectedStudentId by remember { mutableStateOf<Long?>(null) }
     val filters = listOf("Todas", "Pendientes", "Por Validar", "Validadas", "Rechazadas")
+    var selectedDateFilter by remember { mutableStateOf("Todas") }
 
-    val tareasFiltradas = remember(tareas, selectedFilterIndex) {
-        when (selectedFilterIndex) {
-            1 -> tareas.filter { it.estado == EstadoTarea.PENDIENTE || it.estado == EstadoTarea.EN_DESARROLLO }
+    val inicioHoy = remember {
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    val inicioManana = remember(inicioHoy) {
+        Calendar.getInstance().apply {
+            timeInMillis = inicioHoy
+            add(Calendar.DAY_OF_YEAR, 1)
+        }.timeInMillis
+    }
+    val inicioEnSieteDias = remember(inicioHoy) {
+        Calendar.getInstance().apply {
+            timeInMillis = inicioHoy
+            add(Calendar.DAY_OF_YEAR, 7)
+        }.timeInMillis
+    }
+
+    val tareasFiltradas = remember(tareas, selectedFilterIndex, selectedStudentId, selectedDateFilter,inicioHoy,inicioManana,inicioEnSieteDias) {
+        val porEstado = when (selectedFilterIndex) {
+            1 -> tareas.filter {
+                it.estado == EstadoTarea.PENDIENTE ||
+                        it.estado == EstadoTarea.EN_DESARROLLO
+            }
             2 -> tareas.filter { it.estado == EstadoTarea.PENDIENTE_VALIDACION }
             3 -> tareas.filter { it.estado == EstadoTarea.VALIDADA }
             4 -> tareas.filter { it.estado == EstadoTarea.RECHAZADA }
             else -> tareas
         }
+
+        porEstado
+            .filter {
+                selectedStudentId == null || it.estudianteId == selectedStudentId
+            }
+            .filter { tarea ->
+                when (selectedDateFilter) {
+                    "Hoy" ->
+                        tarea.fechaProgramada >= inicioHoy &&
+                                tarea.fechaProgramada < inicioManana
+
+                    "Próximos 7 días" ->
+                        tarea.fechaProgramada >= inicioHoy &&
+                                tarea.fechaProgramada < inicioEnSieteDias
+
+                    "Atrasadas" ->
+                        tarea.fechaProgramada < inicioHoy &&
+                                tarea.estado != EstadoTarea.VALIDADA &&
+                                tarea.estado != EstadoTarea.PENDIENTE_VALIDACION
+
+                    else -> true
+                }
+            }
     }
 
     Scaffold(
@@ -92,6 +145,7 @@ fun TareasListScreen(
                     )
                 )
                 ScrollableTabRow(selectedTabIndex = selectedFilterIndex) {
+
                     filters.forEachIndexed { index, text ->
                         Tab(
                             selected = selectedFilterIndex == index,
@@ -100,7 +154,42 @@ fun TareasListScreen(
                         )
                     }
                 }
+                if (isAdmin) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item {
+                            FilterChip(
+                                selected = selectedStudentId == null,
+                                onClick = { selectedStudentId = null },
+                                label = { Text("Todos") }
+                            )
+                        }
+
+                        items(usuarios.filter { it.rol == Rol.COLABORADOR }) { estudiante ->
+                            FilterChip(
+                                selected = selectedStudentId == estudiante.id,
+                                onClick = { selectedStudentId = estudiante.id },
+                                label = { Text(estudiante.nombre) }
+                            )
+                        }
+                    }
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(listOf("Todas", "Hoy", "Próximos 7 días", "Atrasadas")) { filtro ->
+                            FilterChip(
+                                selected = selectedDateFilter == filtro,
+                                onClick = { selectedDateFilter = filtro },
+                                label = { Text(filtro) }
+                            )
+                        }
+                    }
+                }
             }
+
         },
         floatingActionButton = {
             if (isAdmin) {

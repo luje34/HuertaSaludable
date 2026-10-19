@@ -1,10 +1,23 @@
 package com.example.huertasaludable.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.huertasaludable.data.model.EstadoSector
 
-@Entity(tableName = "sectores")
+@Entity(
+    tableName = "sectores",
+    foreignKeys = [
+        ForeignKey(
+            entity = UsuarioEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["responsableId"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ],
+    indices = [Index("responsableId")]
+)
 data class SectorEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,

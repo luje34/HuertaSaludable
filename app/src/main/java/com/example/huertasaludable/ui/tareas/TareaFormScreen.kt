@@ -38,7 +38,35 @@ import androidx.compose.ui.unit.dp
 import com.example.huertasaludable.data.model.Rol
 import com.example.huertasaludable.data.model.TipoTarea
 import com.example.huertasaludable.session.UserSessionManager
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import androidx.compose.material3.OutlinedButton
 
+
+private fun aFechaPicker(fechaLocal: Long): Long {
+    val local = Calendar.getInstance().apply { timeInMillis = fechaLocal }
+    return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        clear()
+        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH))
+    }.timeInMillis
+}
+
+private fun desdeFechaPicker(fechaUtc: Long): Long {
+    val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        timeInMillis = fechaUtc
+    }
+    return Calendar.getInstance().apply {
+        clear()
+        set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH), utc.get(Calendar.DAY_OF_MONTH))
+    }.timeInMillis
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TareaFormScreen(
@@ -47,6 +75,7 @@ fun TareaFormScreen(
     onSaveSuccess: () -> Unit,
     onBackClick: () -> Unit
 ) {
+    var mostrarSelectorFecha by remember { mutableStateOf(false) }
     val formState by viewModel.formState.collectAsState()
     val usuarios by viewModel.usuarios.collectAsState()
     val sectores by viewModel.sectores.collectAsState()
@@ -123,6 +152,7 @@ fun TareaFormScreen(
                             onClick = {
                                 viewModel.onTipoChanged(tipo)
                                 tipoDropdownExpanded = false
+                                
                             }
                         )
                     }
@@ -130,7 +160,42 @@ fun TareaFormScreen(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { mostrarSelectorFecha = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val formato = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+                Text("Fecha programada: ${formato.format(Date(formState.fechaProgramada))}")
+            }
 
+            if (mostrarSelectorFecha) {
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = aFechaPicker(formState.fechaProgramada)
+                )
+
+                DatePickerDialog(
+                    onDismissRequest = { mostrarSelectorFecha = false },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                datePickerState.selectedDateMillis?.let { fecha ->
+                                    viewModel.onFechaProgramadaChanged(desdeFechaPicker(fecha))
+                                }
+                                mostrarSelectorFecha = false
+                            }
+                        ) {
+                            Text("Aceptar")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { mostrarSelectorFecha = false }) {
+                            Text("Cancelar")
+                        }
+                    }
+                ) {
+                    DatePicker(state = datePickerState)
+                }
+            }
             OutlinedTextField(
                 value = formState.descripcion,
                 onValueChange = { viewModel.onDescripcionChanged(it) },

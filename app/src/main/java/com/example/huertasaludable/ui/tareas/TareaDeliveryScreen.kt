@@ -39,6 +39,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.huertasaludable.session.UserSessionManager
+import android.graphics.Bitmap
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +56,7 @@ fun TareaDeliveryScreen(
     onDeliverySuccess: () -> Unit,
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val deliveryState by viewModel.deliveryState.collectAsState()
     val tareas by viewModel.tareas.collectAsState()
     val currentUser by UserSessionManager.currentUser.collectAsState()
@@ -57,19 +66,53 @@ fun TareaDeliveryScreen(
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
-        uri?.let { viewModel.onFotografiaEvidenciaSelected(it.toString()) }
-    }
-
-    LaunchedEffect(tareaId) {
-        viewModel.cargarTareaParaEntrega(tareaId)
-    }
-
-    LaunchedEffect(deliveryState.isDelivered) {
-        if (deliveryState.isDelivered) {
-            onDeliverySuccess()
+        uri?.let { selectedUri ->
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    selectedUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                viewModel.onFotografiaEvidenciaSelected(selectedUri.toString())
+            } catch (error: SecurityException) {
+                Toast.makeText(
+                    context,
+                    "No se pudo conservar el acceso a la foto. Intenta elegirla otra vez.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            val directory = File(context.filesDir, "evidencias")
+            val photoFile = File(directory, "tarea_${tareaId}_${System.currentTimeMillis()}.jpg")
 
+            try {
+                if (!directory.exists() && !directory.mkdirs()) {
+                    throw IOException("No se pudo crear la carpeta de evidencias")
+                }
+
+                FileOutputStream(photoFile).use { output ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
+                        throw IOException("No se pudo guardar la imagen")
+                    }
+                }
+
+                viewModel.onFotografiaEvidenciaSelected(
+                    android.net.Uri.fromFile(photoFile).toString()
+                )
+            } catch (error: IOException) {
+                photoFile.delete()
+                Toast.makeText(
+                    context,
+                    "No se pudo guardar la foto: ${error.localizedMessage}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -131,7 +174,9 @@ fun TareaDeliveryScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (!deliveryState.fotografiaEvidenciaUri.isNullOrEmpty()) {
+            AnimatedVisibility(
+                visible = !deliveryState.fotografiaEvidenciaUri.isNullOrEmpty()
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -162,7 +207,12 @@ fun TareaDeliveryScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Adjuntar Foto de Evidencia (Photo Picker)")
             }
-
+            OutlinedButton(
+                onClick = { cameraLauncher.launch(null) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Tomar foto con la cámara")
+            }
             Spacer(modifier = Modifier.height(32.dp))
 
             Button(

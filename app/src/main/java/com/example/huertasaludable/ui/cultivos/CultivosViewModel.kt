@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.huertasaludable.data.model.Rol
+import com.example.huertasaludable.session.UserSessionManager
 
 data class CultivoFormUiState(
     val id: Long = 0,
@@ -36,6 +38,11 @@ data class CultivoFormUiState(
 )
 
 class CultivosViewModel(private val repository: HuertaRepository) : ViewModel() {
+
+    private fun esAdministradorAutenticado(usuarioId: Long): Boolean{
+        val usuario = UserSessionManager.currentUser.value ?: return false
+        return usuario.id == usuarioId && usuario.rol == Rol.ADMIN
+    }
 
     val cultivos = repository.getCultivos().stateIn(
         scope = viewModelScope,
@@ -142,6 +149,7 @@ class CultivosViewModel(private val repository: HuertaRepository) : ViewModel() 
     }
 
     fun guardarCultivo(usuarioId: Long) {
+        if (!esAdministradorAutenticado(usuarioId)) return
         val state = _formState.value
         val nombre = state.nombre.trim()
         val descripcion = state.descripcion.trim()

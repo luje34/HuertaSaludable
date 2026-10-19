@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.huertasaludable.data.model.Rol
+import com.example.huertasaludable.session.UserSessionManager
 
 data class SectorFormUiState(
     val id: Long = 0,
@@ -31,6 +33,11 @@ data class SectorFormUiState(
 )
 
 class SectoresViewModel(private val repository: HuertaRepository) : ViewModel() {
+
+    private fun esAdministradorAutenticado(usuarioId: Long): Boolean{
+        val usuario = UserSessionManager.currentUser.value ?: return false
+        return usuario.id == usuarioId && usuario.rol == Rol.ADMIN
+    }
 
     val sectores = repository.getSectores().stateIn(
         scope = viewModelScope,
@@ -113,6 +120,7 @@ class SectoresViewModel(private val repository: HuertaRepository) : ViewModel() 
     }
 
     fun guardarSector(usuarioId: Long) {
+        if (!esAdministradorAutenticado(usuarioId)) return
         val state = _formState.value
         val codigo = state.codigo.trim()
         val nombre = state.nombre.trim()
@@ -176,6 +184,7 @@ class SectoresViewModel(private val repository: HuertaRepository) : ViewModel() 
     }
 
     fun cambiarEstadoSector(sector: SectorEntity, nuevoEstado: EstadoSector, usuarioId: Long) {
+        if (!esAdministradorAutenticado(usuarioId)) return
         viewModelScope.launch {
             val sectorActualizado = sector.copy(estado = nuevoEstado)
             repository.updateSector(sectorActualizado)
