@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.animateContentSize
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -32,11 +34,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.huertasaludable.data.model.Rol
 import com.example.huertasaludable.data.model.TipoTarea
+import com.example.huertasaludable.ui.components.filtrarCultivosPorSector
 import com.example.huertasaludable.session.UserSessionManager
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -48,6 +52,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import androidx.compose.material3.OutlinedButton
+import android.widget.Toast
 
 
 private fun aFechaPicker(fechaLocal: Long): Long {
@@ -75,6 +80,7 @@ fun TareaFormScreen(
     onSaveSuccess: () -> Unit,
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     var mostrarSelectorFecha by remember { mutableStateOf(false) }
     val formState by viewModel.formState.collectAsState()
     val usuarios by viewModel.usuarios.collectAsState()
@@ -95,8 +101,26 @@ fun TareaFormScreen(
 
     LaunchedEffect(formState.isSaved) {
         if (formState.isSaved) {
+            val message = if (tareaId == 0L) {
+                "Tarea asignada correctamente"
+            } else {
+                "Tarea actualizada correctamente"
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            viewModel.limpiarFormulario()
             onSaveSuccess()
         }
+    }
+
+    LaunchedEffect(formState.generalError) {
+        formState.generalError?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    BackHandler {
+        viewModel.limpiarFormulario()
+        onBackClick()
     }
 
     Scaffold(
@@ -109,7 +133,12 @@ fun TareaFormScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(
+                        onClick = {
+                            viewModel.limpiarFormulario()
+                            onBackClick()
+                        }
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
@@ -127,6 +156,7 @@ fun TareaFormScreen(
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(20.dp)
                 .verticalScroll(rememberScrollState())
+                .animateContentSize()
         ) {
             ExposedDropdownMenuBox(
                 expanded = tipoDropdownExpanded,
@@ -298,7 +328,8 @@ fun TareaFormScreen(
                 expanded = cultivoDropdownExpanded,
                 onExpandedChange = { cultivoDropdownExpanded = it }
             ) {
-                val cultivoSeleccionado = cultivos.find { it.id == formState.cultivoId }
+                val cultivosDelSector = filtrarCultivosPorSector(cultivos, formState.sectorId)
+                val cultivoSeleccionado = cultivosDelSector.find { it.id == formState.cultivoId }
                 OutlinedTextField(
                     value = cultivoSeleccionado?.nombre ?: "Ninguno (Opcional)",
                     onValueChange = {},
@@ -320,7 +351,14 @@ fun TareaFormScreen(
                             cultivoDropdownExpanded = false
                         }
                     )
-                    cultivos.forEach { cul ->
+                    if (cultivosDelSector.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("No hay cultivos en este sector") },
+                            enabled = false,
+                            onClick = {}
+                        )
+                    }
+                    cultivosDelSector.forEach { cul ->
                         DropdownMenuItem(
                             text = { Text("🌱 ${cul.nombre}") },
                             onClick = {
@@ -331,6 +369,13 @@ fun TareaFormScreen(
                     }
                 }
             }
+            if (formState.cultivoError != null) {
+                Text(
+                    text = formState.cultivoError!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
 
             Spacer(modifier = Modifier.height(28.dp))
 
@@ -340,12 +385,16 @@ fun TareaFormScreen(
                         viewModel.guardarTarea(docenteId)
                     }
                 },
+                enabled = !formState.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Asignar Tarea", fontWeight = FontWeight.Bold)
+                Text(
+                    if (formState.isLoading) "Guardando..." else "Asignar Tarea",
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }

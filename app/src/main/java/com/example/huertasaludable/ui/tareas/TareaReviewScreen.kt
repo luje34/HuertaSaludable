@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateContentSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -64,8 +66,14 @@ fun TareaReviewScreen(
 
     LaunchedEffect(reviewState.isReviewed) {
         if (reviewState.isReviewed) {
+            viewModel.limpiarRevision()
             onReviewSuccess()
         }
+    }
+
+    BackHandler {
+        viewModel.limpiarRevision()
+        onBackClick()
     }
 
     Scaffold(
@@ -73,7 +81,12 @@ fun TareaReviewScreen(
             TopAppBar(
                 title = { Text("Revisión de Tarea", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(
+                        onClick = {
+                            viewModel.limpiarRevision()
+                            onBackClick()
+                        }
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
@@ -101,6 +114,7 @@ fun TareaReviewScreen(
                     .background(MaterialTheme.colorScheme.surface)
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState())
+                    .animateContentSize()
             ) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),

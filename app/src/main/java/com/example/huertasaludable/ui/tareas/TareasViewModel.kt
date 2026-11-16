@@ -7,50 +7,24 @@ import com.example.huertasaludable.data.local.entity.TareaEntity
 import com.example.huertasaludable.data.model.EstadoTarea
 import com.example.huertasaludable.data.model.TipoTarea
 import com.example.huertasaludable.data.repository.HuertaRepository
+import com.example.huertasaludable.domain.validation.TareaDeliveryValidator
+import com.example.huertasaludable.domain.validation.TareaFormValidator
+import com.example.huertasaludable.domain.validation.TareaReviewValidator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.example.huertasaludable.data.model.Rol
 import com.example.huertasaludable.session.UserSessionManager
 
-data class TareaFormUiState(
-    val id: Long = 0,
-    val tipo: TipoTarea = TipoTarea.RIEGO,
-    val descripcion: String = "",
-    val descripcionError: String? = null,
-    val sectorId: Long? = null,
-    val cultivoId: Long? = null,
-    val fechaProgramada: Long = System.currentTimeMillis() + 86400000L,
-    val estudianteId: Long? = null,
-    val estudianteError: String? = null,
-    val isLoading: Boolean = false,
-    val isSaved: Boolean = false,
-    val generalError: String? = null
-)
-
-data class TareaDeliveryUiState(
-    val tareaId: Long = 0,
-    val comentarioEstudiante: String = "",
-    val comentarioError: String? = null,
-    val fotografiaEvidenciaUri: String? = null,
-    val fotografiaError: String? = null,
-    val isLoading: Boolean = false,
-    val isDelivered: Boolean = false
-)
-
-data class TareaReviewUiState(
-    val tareaId: Long = 0,
-    val comentarioDocente: String = "",
-    val motivoRechazoError: String? = null,
-    val isLoading: Boolean = false,
-    val isReviewed: Boolean = false
-)
-
 class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
+    private var activeFormId: Long? = null
+    private var activeDeliveryTaskId: Long? = null
+    private var activeReviewTaskId: Long? = null
 
     private fun esAdministradorAutenticado(usuarioId: Long): Boolean{
         val usuario = UserSessionManager.currentUser.value ?: return false
@@ -98,32 +72,33 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
     val reviewState: StateFlow<TareaReviewUiState> = _reviewState.asStateFlow()
 
     fun cargarTareaParaEditar(tareaId: Long) {
+        if (activeFormId == tareaId) return
+        activeFormId = tareaId
         if (tareaId == 0L) {
             _formState.value = TareaFormUiState()
             return
         }
         viewModelScope.launch {
-            repository.getTareaById(tareaId).collect { tarea ->
-                if (tarea != null) {
-                    _formState.value = TareaFormUiState(
-                        id = tarea.id,
-                        tipo = tarea.tipo,
-                        descripcion = tarea.descripcion,
-                        sectorId = tarea.sectorId,
-                        cultivoId = tarea.cultivoId,
-                        fechaProgramada = tarea.fechaProgramada,
-                        estudianteId = tarea.estudianteId
-                    )
-                }
+            val tarea = repository.getTareaById(tareaId).first()
+            if (tarea != null && activeFormId == tareaId) {
+                _formState.value = TareaFormUiState(
+                    id = tarea.id,
+                    tipo = tarea.tipo,
+                    descripcion = tarea.descripcion,
+                    sectorId = tarea.sectorId,
+                    cultivoId = tarea.cultivoId,
+                    fechaProgramada = tarea.fechaProgramada,
+                    estudianteId = tarea.estudianteId
+                )
             }
         }
     }
 
     fun onTipoChanged(tipo: TipoTarea) {
-        _formState.update { it.copy(tipo = tipo) }
+        _formState.update { it.copy(tipo = tipo, generalError = null) }
     }
     fun onFechaProgramadaChanged(fecha: Long) {
-        _formState.update { it.copy(fechaProgramada = fecha) }
+        _formState.update { it.copy(fechaProgramada = fecha, generalError = null) }
     }    fun onDescripcionChanged(value: String) {
         _formState.update {
             it.copy(
@@ -134,52 +109,81 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
     }
 
     fun onSectorSelected(sectorId: Long?) {
-        _formState.update { it.copy(sectorId = sectorId) }
+        _formState.update { state ->
+            state.copy(
+                sectorId = sectorId,
+                cultivoId = if (sectorId != null && sectorId != state.sectorId) null else state.cultivoId,
+                cultivoError = null,
+                generalError = null
+            )
+        }
     }
 
     fun onCultivoSelected(cultivoId: Long?) {
-        _formState.update { it.copy(cultivoId = cultivoId) }
+        _formState.update {
+            it.copy(cultivoId = cultivoId, cultivoError = null, generalError = null)
+        }
     }
 
     fun onEstudianteSelected(estudianteId: Long?) {
         _formState.update {
             it.copy(
                 estudianteId = estudianteId,
-                estudianteError = if (estudianteId == null) "Selecciona un estudiante responsable" else null
+                estudianteError = null,
+                generalError = null
             )
         }
     }
 
     fun guardarTarea(docenteId: Long) {
+        if (!esAdministradorAutenticado(docenteId)) {
+            _formState.update { it.copy(generalError = "No tienes permiso para asignar tareas") }
+            return
+        }
         val state = _formState.value
         val descripcion = state.descripcion.trim()
-
-        var hasError = false
-        if (descripcion.isBlank()) {
-            _formState.update { it.copy(descripcionError = "Ingresa las instrucciones de la tarea") }
-            hasError = true
+        val selectedCropSectorId = state.cultivoId?.let { cropId ->
+            cultivos.value.firstOrNull { it.id == cropId }?.sectorId
         }
-        if (state.estudianteId == null) {
-            _formState.update { it.copy(estudianteError = "Selecciona el estudiante responsable") }
-            hasError = true
+        val errors = TareaFormValidator.validate(
+            descripcion = descripcion,
+            estudianteId = state.estudianteId,
+            sectorId = state.sectorId,
+            cultivoSectorId = selectedCropSectorId
+        )
+        _formState.update {
+            it.copy(
+                descripcionError = errors.descripcion,
+                estudianteError = errors.estudiante,
+                cultivoError = errors.cultivo,
+                generalError = null
+            )
         }
-
-        if (hasError) return
-
-        if (!esAdministradorAutenticado(docenteId)) return
+        if (errors.hasErrors || state.isLoading) return
         viewModelScope.launch {
             _formState.update { it.copy(isLoading = true) }
-            val tarea = TareaEntity(
-                id = state.id,
-                tipo = state.tipo,
-                descripcion = descripcion,
-                sectorId = state.sectorId,
-                cultivoId = state.cultivoId,
-                fechaProgramada = state.fechaProgramada,
-                estudianteId = state.estudianteId,
-                docenteCreadorId = docenteId,
-                estado = EstadoTarea.PENDIENTE
-            )
+            try {
+            val tarea = if (state.id == 0L) {
+                TareaEntity(
+                    tipo = state.tipo,
+                    descripcion = descripcion,
+                    sectorId = state.sectorId,
+                    cultivoId = state.cultivoId,
+                    fechaProgramada = state.fechaProgramada,
+                    estudianteId = state.estudianteId,
+                    docenteCreadorId = docenteId,
+                    estado = EstadoTarea.PENDIENTE
+                )
+            } else {
+                repository.getTareaById(state.id).first()?.copy(
+                    tipo = state.tipo,
+                    descripcion = descripcion,
+                    sectorId = state.sectorId,
+                    cultivoId = state.cultivoId,
+                    fechaProgramada = state.fechaProgramada,
+                    estudianteId = state.estudianteId
+                ) ?: error("No se encontró la tarea que se intenta editar")
+            }
 
             if (state.id == 0L) {
                 val newId = repository.insertTarea(tarea)
@@ -193,9 +197,25 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
             } else {
                 repository.updateTarea(tarea)
             }
+            } catch (error: Exception) {
+                _formState.update {
+                    it.copy(
+                        isLoading = false,
+                        generalError = "No se pudo guardar la tarea: ${error.localizedMessage ?: "error desconocido"}"
+                    )
+                }
+                return@launch
+            }
 
-            _formState.update { it.copy(isLoading = false, isSaved = true) }
+            _formState.update {
+                it.copy(isLoading = false, isSaved = true, generalError = null)
+            }
         }
+    }
+
+    fun limpiarFormulario() {
+        activeFormId = null
+        _formState.value = TareaFormUiState()
     }
 
     fun iniciarTarea(tarea: TareaEntity, usuarioId: Long) {
@@ -219,14 +239,22 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
     }
 
     fun cargarTareaParaEntrega(tareaId: Long) {
+        if (activeDeliveryTaskId == tareaId) return
+        activeDeliveryTaskId = tareaId
         _deliveryState.value = TareaDeliveryUiState(tareaId = tareaId)
+    }
+
+    fun limpiarEntrega() {
+        activeDeliveryTaskId = null
+        _deliveryState.value = TareaDeliveryUiState()
     }
 
     fun onComentarioEstudianteChanged(value: String) {
         _deliveryState.update {
             it.copy(
                 comentarioEstudiante = value,
-                comentarioError = if (value.isBlank()) "Escribe un comentario sobre el trabajo realizado" else null
+                comentarioError = null,
+                generalError = null
             )
         }
     }
@@ -239,20 +267,25 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
         val state = _deliveryState.value
         val comentario = state.comentarioEstudiante.trim()
 
-        var hasError = false
-        if (comentario.isBlank()) {
-            _deliveryState.update { it.copy(comentarioError = "Escribe un comentario de lo realizado") }
-            hasError = true
+        val comentarioError = TareaDeliveryValidator.validate(comentario)
+        if (comentarioError != null) {
+            _deliveryState.update { it.copy(comentarioError = comentarioError) }
+            return
         }
 
-        if (hasError) return
-
-        if(!esColaboradorAsignado(tarea, usuarioId) ||
+        if (!esColaboradorAsignado(tarea, usuarioId) ||
             (tarea.estado != EstadoTarea.EN_DESARROLLO &&
-                    tarea.estado != EstadoTarea.RECHAZADA)
-            )return
+                tarea.estado != EstadoTarea.RECHAZADA)
+        ) {
+            _deliveryState.update {
+                it.copy(generalError = "No puedes entregar esta tarea en su estado actual")
+            }
+            return
+        }
+        if (state.isLoading) return
         viewModelScope.launch {
             _deliveryState.update { it.copy(isLoading = true) }
+            try {
             val tareaActualizada = tarea.copy(
                 estado = EstadoTarea.PENDIENTE_VALIDACION,
                 comentarioEstudiante = comentario,
@@ -267,12 +300,29 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
                 descripcion = "Estudiante entregó evidencia de la tarea '${tarea.tipo.titulo}'.",
                 usuarioId = usuarioId
             )
-            _deliveryState.update { it.copy(isLoading = false, isDelivered = true) }
+            _deliveryState.update {
+                it.copy(isLoading = false, isDelivered = true, generalError = null)
+            }
+            } catch (error: Exception) {
+                _deliveryState.update {
+                    it.copy(
+                        isLoading = false,
+                        generalError = "No se pudo enviar la tarea: ${error.localizedMessage ?: "error desconocido"}"
+                    )
+                }
+            }
         }
     }
 
     fun cargarTareaParaRevision(tareaId: Long) {
+        if (activeReviewTaskId == tareaId) return
+        activeReviewTaskId = tareaId
         _reviewState.value = TareaReviewUiState(tareaId = tareaId)
+    }
+
+    fun limpiarRevision() {
+        activeReviewTaskId = null
+        _reviewState.value = TareaReviewUiState()
     }
 
     fun onComentarioDocenteChanged(value: String) {
@@ -306,8 +356,9 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
 
     fun rechazarTarea(tarea: TareaEntity, docenteId: Long) {
         val motivo = _reviewState.value.comentarioDocente.trim()
-        if (motivo.isBlank()) {
-            _reviewState.update { it.copy(motivoRechazoError = "Debes ingresar un motivo obligatorio para rechazar la tarea") }
+        val motivoError = TareaReviewValidator.validateRejectionReason(motivo)
+        if (motivoError != null) {
+            _reviewState.update { it.copy(motivoRechazoError = motivoError) }
             return
         }
         if (!esAdministradorAutenticado(docenteId) ||

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.animateContentSize
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -45,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.huertasaludable.data.model.TipoProblema
+import com.example.huertasaludable.ui.components.filtrarCultivosPorSector
 import com.example.huertasaludable.session.UserSessionManager
 import android.graphics.Bitmap
 import android.widget.Toast
@@ -122,10 +125,27 @@ fun ReportarProblemaScreen(
             }
         }
     }
+    LaunchedEffect(Unit) {
+        viewModel.cargarNuevoReporte()
+    }
+
     LaunchedEffect(formState.isSaved) {
         if (formState.isSaved) {
+            Toast.makeText(context, "Reporte enviado correctamente", Toast.LENGTH_LONG).show()
+            viewModel.limpiarFormularioReporte()
             onSaveSuccess()
         }
+    }
+
+    LaunchedEffect(formState.generalError) {
+        formState.generalError?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    BackHandler {
+        viewModel.limpiarFormularioReporte()
+        onBackClick()
     }
 
     Scaffold(
@@ -133,7 +153,12 @@ fun ReportarProblemaScreen(
             TopAppBar(
                 title = { Text("Reportar Problema", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(
+                        onClick = {
+                            viewModel.limpiarFormularioReporte()
+                            onBackClick()
+                        }
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
@@ -151,6 +176,7 @@ fun ReportarProblemaScreen(
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(20.dp)
                 .verticalScroll(rememberScrollState())
+                .animateContentSize()
         ) {
             ExposedDropdownMenuBox(
                 expanded = tipoDropdownExpanded,
@@ -245,7 +271,8 @@ fun ReportarProblemaScreen(
                 expanded = cultivoDropdownExpanded,
                 onExpandedChange = { cultivoDropdownExpanded = it }
             ) {
-                val cultivoSeleccionado = cultivos.find { it.id == formState.cultivoId }
+                val cultivosDelSector = filtrarCultivosPorSector(cultivos, formState.sectorId)
+                val cultivoSeleccionado = cultivosDelSector.find { it.id == formState.cultivoId }
                 OutlinedTextField(
                     value = cultivoSeleccionado?.nombre ?: "Ninguno (Opcional)",
                     onValueChange = {},
@@ -267,7 +294,14 @@ fun ReportarProblemaScreen(
                             cultivoDropdownExpanded = false
                         }
                     )
-                    cultivos.forEach { cul ->
+                    if (cultivosDelSector.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("No hay cultivos en este sector") },
+                            enabled = false,
+                            onClick = {}
+                        )
+                    }
+                    cultivosDelSector.forEach { cul ->
                         DropdownMenuItem(
                             text = { Text("🌱 ${cul.nombre}") },
                             onClick = {
@@ -277,6 +311,13 @@ fun ReportarProblemaScreen(
                         )
                     }
                 }
+            }
+            if (formState.cultivoError != null) {
+                Text(
+                    text = formState.cultivoError!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
