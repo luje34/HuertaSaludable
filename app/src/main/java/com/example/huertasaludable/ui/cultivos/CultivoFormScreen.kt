@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateContentSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -131,8 +133,14 @@ fun CultivoFormScreen(
 
     LaunchedEffect(formState.isSaved) {
         if (formState.isSaved) {
+            viewModel.limpiarFormulario()
             onSaveSuccess()
         }
+    }
+
+    BackHandler {
+        viewModel.limpiarFormulario()
+        onBackClick()
     }
 
     Scaffold(
@@ -145,7 +153,12 @@ fun CultivoFormScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(
+                        onClick = {
+                            viewModel.limpiarFormulario()
+                            onBackClick()
+                        }
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
@@ -163,6 +176,7 @@ fun CultivoFormScreen(
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(20.dp)
                 .verticalScroll(rememberScrollState())
+                .animateContentSize()
         ) {
             OutlinedTextField(
                 value = formState.nombre,

@@ -6,33 +6,20 @@ import androidx.lifecycle.viewModelScope
 import com.example.huertasaludable.data.local.entity.SectorEntity
 import com.example.huertasaludable.data.model.EstadoSector
 import com.example.huertasaludable.data.repository.HuertaRepository
+import com.example.huertasaludable.domain.validation.SectorFormValidator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.example.huertasaludable.data.model.Rol
 import com.example.huertasaludable.session.UserSessionManager
 
-data class SectorFormUiState(
-    val id: Long = 0,
-    val codigo: String = "",
-    val codigoError: String? = null,
-    val nombre: String = "",
-    val nombreError: String? = null,
-    val descripcion: String = "",
-    val descripcionError: String? = null,
-    val ubicacion: String = "",
-    val ubicacionError: String? = null,
-    val estado: EstadoSector = EstadoSector.DISPONIBLE,
-    val isLoading: Boolean = false,
-    val isSaved: Boolean = false,
-    val generalError: String? = null
-)
-
 class SectoresViewModel(private val repository: HuertaRepository) : ViewModel() {
+    private var activeFormId: Long? = null
 
     private fun esAdministradorAutenticado(usuarioId: Long): Boolean{
         val usuario = UserSessionManager.currentUser.value ?: return false
@@ -55,64 +42,43 @@ class SectoresViewModel(private val repository: HuertaRepository) : ViewModel() 
     val formState: StateFlow<SectorFormUiState> = _formState.asStateFlow()
 
     fun cargarSectorParaEditar(sectorId: Long) {
+        if (activeFormId == sectorId) return
+        activeFormId = sectorId
         if (sectorId == 0L) {
             _formState.value = SectorFormUiState()
             return
         }
         viewModelScope.launch {
-            repository.getSectorById(sectorId).collect { sector ->
-                if (sector != null) {
-                    _formState.value = SectorFormUiState(
-                        id = sector.id,
-                        codigo = sector.codigo,
-                        nombre = sector.nombre,
-                        descripcion = sector.descripcion,
-                        ubicacion = sector.ubicacion,
-                        estado = sector.estado
-                    )
-                }
+            val sector = repository.getSectorById(sectorId).first()
+            if (sector != null && activeFormId == sectorId) {
+                _formState.value = SectorFormUiState(
+                    id = sector.id,
+                    codigo = sector.codigo,
+                    nombre = sector.nombre,
+                    descripcion = sector.descripcion,
+                    ubicacion = sector.ubicacion,
+                    estado = sector.estado
+                )
             }
         }
     }
 
     fun onCodigoChanged(value: String) {
-        _formState.update {
-            it.copy(
-                codigo = value,
-                codigoError = if (value.isBlank()) "El código es obligatorio (ej. SEC-01)" else null,
-                generalError = null
-            )
-        }
+        _formState.update { it.copy(codigo = value, codigoError = null, generalError = null) }
     }
 
     fun onNombreChanged(value: String) {
-        _formState.update {
-            it.copy(
-                nombre = value,
-                nombreError = if (value.isBlank()) "El nombre es obligatorio" else null,
-                generalError = null
-            )
-        }
+        _formState.update { it.copy(nombre = value, nombreError = null, generalError = null) }
     }
 
     fun onDescripcionChanged(value: String) {
         _formState.update {
-            it.copy(
-                descripcion = value,
-                descripcionError = if (value.isBlank()) "La descripción es obligatoria" else null,
-                generalError = null
-            )
+            it.copy(descripcion = value, descripcionError = null, generalError = null)
         }
     }
 
     fun onUbicacionChanged(value: String) {
-        _formState.update {
-            it.copy(
-                ubicacion = value,
-                ubicacionError = if (value.isBlank()) "La ubicación es obligatoria" else null,
-                generalError = null
-            )
-        }
+        _formState.update { it.copy(ubicacion = value, ubicacionError = null, generalError = null) }
     }
 
     fun onEstadoChanged(value: EstadoSector) {
@@ -120,32 +86,25 @@ class SectoresViewModel(private val repository: HuertaRepository) : ViewModel() 
     }
 
     fun guardarSector(usuarioId: Long) {
-        if (!esAdministradorAutenticado(usuarioId)) return
+        if (!esAdministradorAutenticado(usuarioId)) {
+            _formState.update { it.copy(generalError = "No tienes permiso para guardar sectores") }
+            return
+        }
         val state = _formState.value
         val codigo = state.codigo.trim()
         val nombre = state.nombre.trim()
         val descripcion = state.descripcion.trim()
         val ubicacion = state.ubicacion.trim()
-
-        var hasError = false
-        if (codigo.isBlank()) {
-            _formState.update { it.copy(codigoError = "Ingresa un código (ej: SEC-01)") }
-            hasError = true
+        val errors = SectorFormValidator.validate(codigo, nombre, descripcion, ubicacion)
+        _formState.update {
+            it.copy(
+                codigoError = errors.codigo,
+                nombreError = errors.nombre,
+                descripcionError = errors.descripcion,
+                ubicacionError = errors.ubicacion
+            )
         }
-        if (nombre.isBlank()) {
-            _formState.update { it.copy(nombreError = "Ingresa el nombre del sector") }
-            hasError = true
-        }
-        if (descripcion.isBlank()) {
-            _formState.update { it.copy(descripcionError = "Ingresa una descripción del sector") }
-            hasError = true
-        }
-        if (ubicacion.isBlank()) {
-            _formState.update { it.copy(ubicacionError = "Ingresa la ubicación física del sector") }
-            hasError = true
-        }
-
-        if (hasError) return
+        if (errors.hasErrors || state.isLoading) return
 
         viewModelScope.launch {
             _formState.update { it.copy(isLoading = true) }
@@ -181,6 +140,11 @@ class SectoresViewModel(private val repository: HuertaRepository) : ViewModel() 
 
             _formState.update { it.copy(isLoading = false, isSaved = true) }
         }
+    }
+
+    fun limpiarFormulario() {
+        activeFormId = null
+        _formState.value = SectorFormUiState()
     }
 
     fun cambiarEstadoSector(sector: SectorEntity, nuevoEstado: EstadoSector, usuarioId: Long) {

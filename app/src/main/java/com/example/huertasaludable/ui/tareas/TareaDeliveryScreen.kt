@@ -14,10 +14,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateContentSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,6 +65,10 @@ fun TareaDeliveryScreen(
     val currentUser by UserSessionManager.currentUser.collectAsState()
 
     val tarea = tareas.find { it.id == tareaId }
+
+    LaunchedEffect(tareaId) {
+        viewModel.cargarTareaParaEntrega(tareaId)
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -113,12 +120,36 @@ fun TareaDeliveryScreen(
             }
         }
     }
+    LaunchedEffect(deliveryState.isDelivered) {
+        if (deliveryState.isDelivered) {
+            Toast.makeText(context, "Tarea enviada para revision", Toast.LENGTH_LONG).show()
+            viewModel.limpiarEntrega()
+            onDeliverySuccess()
+        }
+    }
+
+    LaunchedEffect(deliveryState.generalError) {
+        deliveryState.generalError?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    BackHandler {
+        viewModel.limpiarEntrega()
+        onBackClick()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Entregar Trabajo", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(
+                        onClick = {
+                            viewModel.limpiarEntrega()
+                            onBackClick()
+                        }
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
@@ -136,6 +167,7 @@ fun TareaDeliveryScreen(
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(20.dp)
                 .verticalScroll(rememberScrollState())
+                .animateContentSize()
         ) {
             if (tarea != null) {
                 Text(
@@ -221,11 +253,18 @@ fun TareaDeliveryScreen(
                         viewModel.entregarTarea(tarea, currentUser!!.id)
                     }
                 },
+                enabled = !deliveryState.isLoading && deliveryState.tareaId == tareaId,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
+                if (deliveryState.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(end = 8.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
                 Text("Enviar para Revisión", fontWeight = FontWeight.Bold)
             }
         }

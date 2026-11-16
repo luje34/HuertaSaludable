@@ -7,6 +7,7 @@ import com.example.huertasaludable.data.local.entity.ReporteProblemaEntity
 import com.example.huertasaludable.data.model.EstadoProblema
 import com.example.huertasaludable.data.model.TipoProblema
 import com.example.huertasaludable.data.repository.HuertaRepository
+import com.example.huertasaludable.domain.validation.ReporteFormValidator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,19 +18,8 @@ import kotlinx.coroutines.launch
 import com.example.huertasaludable.data.model.Rol
 import com.example.huertasaludable.session.UserSessionManager
 
-data class ReporteFormUiState(
-    val tipo: TipoProblema = TipoProblema.FALTA_AGUA,
-    val descripcion: String = "",
-    val descripcionError: String? = null,
-    val sectorId: Long? = null,
-    val cultivoId: Long? = null,
-    val fotografiaUri: String? = null,
-    val isLoading: Boolean = false,
-    val isSaved: Boolean = false,
-    val generalError: String? = null
-)
-
 class ProblemasViewModel(private val repository: HuertaRepository) : ViewModel() {
+    private var isReportFormActive = false
 
     private fun esAdministradorAutenticado(usuarioId: Long): Boolean{
         val usuario = UserSessionManager.currentUser.value ?: return false
@@ -67,56 +57,88 @@ class ProblemasViewModel(private val repository: HuertaRepository) : ViewModel()
     }
 
     fun onDescripcionChanged(value: String) {
-        _formState.update {
-            it.copy(
-                descripcion = value,
-                descripcionError = if (value.isBlank()) "Describe el problema detectado" else null
+        _formState.update { it.copy(descripcion = value, descripcionError = null, generalError = null) }
+    }
+
+    fun onSectorSelected(sectorId: Long?) {
+        _formState.update { state ->
+            state.copy(
+                sectorId = sectorId,
+                cultivoId = if (sectorId != null && sectorId != state.sectorId) null else state.cultivoId,
+                cultivoError = null,
+                generalError = null
             )
         }
     }
 
-    fun onSectorSelected(sectorId: Long?) {
-        _formState.update { it.copy(sectorId = sectorId) }
-    }
-
     fun onCultivoSelected(cultivoId: Long?) {
-        _formState.update { it.copy(cultivoId = cultivoId) }
+        _formState.update { it.copy(cultivoId = cultivoId, cultivoError = null) }
     }
 
     fun onFotografiaSelected(uriString: String?) {
         _formState.update { it.copy(fotografiaUri = uriString) }
     }
 
-    fun guardarReporte(usuarioId: Long) {
-        if (UserSessionManager.currentUser.value?.id != usuarioId) return
-        val state = _formState.value
-        val descripcion = state.descripcion.trim()
+    fun cargarNuevoReporte() {
+        if (isReportFormActive) return
+        isReportFormActive = true
+        _formState.value = ReporteFormUiState()
+    }
 
-        if (descripcion.isBlank()) {
-            _formState.update { it.copy(descripcionError = "Ingresa la descripción del problema") }
+    fun limpiarFormularioReporte() {
+        isReportFormActive = false
+        _formState.value = ReporteFormUiState()
+    }
+
+    fun guardarReporte(usuarioId: Long) {
+        if (UserSessionManager.currentUser.value?.id != usuarioId) {
+            _formState.update { it.copy(generalError = "No tienes permiso para reportar problemas") }
             return
         }
+        val state = _formState.value
+        val descripcion = state.descripcion.trim()
+        val selectedCropSectorId = state.cultivoId?.let { cropId ->
+            cultivos.value.firstOrNull { it.id == cropId }?.sectorId
+        }
+        val errors = ReporteFormValidator.validate(descripcion, state.sectorId, selectedCropSectorId)
+        _formState.update {
+            it.copy(
+                descripcionError = errors.descripcion,
+                cultivoError = errors.cultivo,
+                generalError = null
+            )
+        }
+        if (errors.hasErrors || state.isLoading) return
 
         viewModelScope.launch {
             _formState.update { it.copy(isLoading = true) }
-            val reporte = ReporteProblemaEntity(
-                sectorId = state.sectorId,
-                cultivoId = state.cultivoId,
-                tipo = state.tipo,
-                descripcion = descripcion,
-                usuarioReportadorId = usuarioId,
-                fotografiaUri = state.fotografiaUri,
-                estado = EstadoProblema.INFORMADO
-            )
-            val newId = repository.insertReporte(reporte)
-            repository.registrarHistorial(
-                tipoEntidad = "PROBLEMA",
-                entidadId = newId,
-                accion = "REPORTAR",
-                descripcion = "Problema '${state.tipo.titulo}' reportado.",
-                usuarioId = usuarioId
-            )
-            _formState.update { it.copy(isLoading = false, isSaved = true) }
+            try {
+                val reporte = ReporteProblemaEntity(
+                    sectorId = state.sectorId,
+                    cultivoId = state.cultivoId,
+                    tipo = state.tipo,
+                    descripcion = descripcion,
+                    usuarioReportadorId = usuarioId,
+                    fotografiaUri = state.fotografiaUri,
+                    estado = EstadoProblema.INFORMADO
+                )
+                val newId = repository.insertReporte(reporte)
+                repository.registrarHistorial(
+                    tipoEntidad = "PROBLEMA",
+                    entidadId = newId,
+                    accion = "REPORTAR",
+                    descripcion = "Problema '${state.tipo.titulo}' reportado.",
+                    usuarioId = usuarioId
+                )
+                _formState.update { it.copy(isLoading = false, isSaved = true) }
+            } catch (error: Exception) {
+                _formState.update {
+                    it.copy(
+                        isLoading = false,
+                        generalError = "No se pudo enviar el reporte: ${error.localizedMessage ?: "error desconocido"}"
+                    )
+                }
+            }
         }
     }
 

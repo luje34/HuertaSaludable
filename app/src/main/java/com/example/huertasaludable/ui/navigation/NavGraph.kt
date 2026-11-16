@@ -1,6 +1,11 @@
 package com.example.huertasaludable.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -49,7 +54,31 @@ fun NavGraph(
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Login.route
+        startDestination = Screen.Login.route,
+        enterTransition = {
+            fadeIn(tween(220)) + slideInHorizontally(
+                initialOffsetX = { width -> width / 12 },
+                animationSpec = tween(220)
+            )
+        },
+        exitTransition = {
+            fadeOut(tween(150)) + slideOutHorizontally(
+                targetOffsetX = { width -> -width / 12 },
+                animationSpec = tween(150)
+            )
+        },
+        popEnterTransition = {
+            fadeIn(tween(220)) + slideInHorizontally(
+                initialOffsetX = { width -> -width / 12 },
+                animationSpec = tween(220)
+            )
+        },
+        popExitTransition = {
+            fadeOut(tween(150)) + slideOutHorizontally(
+                targetOffsetX = { width -> width / 12 },
+                animationSpec = tween(150)
+            )
+        }
     ) {
         composable(Screen.Login.route) {
             LoginScreen(

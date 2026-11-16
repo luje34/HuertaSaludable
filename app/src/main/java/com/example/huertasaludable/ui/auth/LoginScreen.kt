@@ -41,7 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,9 +64,9 @@ fun LoginScreen(
     onLoginSuccess: (UsuarioEntity) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var passwordVisible by remember { mutableStateOf(false) }
-    var creandoCuenta by remember { mutableStateOf(false) }
-    var nombre by remember { mutableStateOf("") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var creandoCuenta by rememberSaveable { mutableStateOf(false) }
+    var nombre by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(uiState.isSuccess, uiState.usuarioLogueado) {
         if (uiState.isSuccess && uiState.usuarioLogueado != null) {
