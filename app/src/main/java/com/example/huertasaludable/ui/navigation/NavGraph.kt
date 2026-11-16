@@ -56,25 +56,25 @@ fun NavGraph(
         navController = navController,
         startDestination = Screen.Login.route,
         enterTransition = {
-            fadeIn(tween(220)) + slideInHorizontally(
+            fadeIn(tween(360)) + slideInHorizontally(
                 initialOffsetX = { width -> width / 12 },
                 animationSpec = tween(220)
             )
         },
         exitTransition = {
-            fadeOut(tween(150)) + slideOutHorizontally(
+            fadeOut(tween(220)) + slideOutHorizontally(
                 targetOffsetX = { width -> -width / 12 },
                 animationSpec = tween(150)
             )
         },
         popEnterTransition = {
-            fadeIn(tween(220)) + slideInHorizontally(
+            fadeIn(tween(360)) + slideInHorizontally(
                 initialOffsetX = { width -> -width / 12 },
                 animationSpec = tween(220)
             )
         },
         popExitTransition = {
-            fadeOut(tween(150)) + slideOutHorizontally(
+            fadeOut(tween(220)) + slideOutHorizontally(
                 targetOffsetX = { width -> width / 12 },
                 animationSpec = tween(150)
             )
