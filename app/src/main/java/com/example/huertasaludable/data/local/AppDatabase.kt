@@ -32,7 +32,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LecturaSensorEntity::class,
         HistorialActividadEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -267,6 +267,19 @@ abstract class AppDatabase : RoomDatabase() {
                 ).forEach { sql -> db.execSQL(sql) }
             }
         }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE usuarios ADD COLUMN synchronizedWithApi INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE sectores ADD COLUMN synchronizedWithApi INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL("UPDATE usuarios SET password = ''")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -276,7 +289,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "huerta_saludable_db"
-                ).addMigrations(MIGRATION_1_2)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                 INSTANCE = instance
                 instance

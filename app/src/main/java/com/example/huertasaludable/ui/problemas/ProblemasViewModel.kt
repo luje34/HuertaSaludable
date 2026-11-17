@@ -37,6 +37,12 @@ class ProblemasViewModel(private val repository: HuertaRepository) : ViewModel()
         initialValue = emptyList()
     )
 
+    val sectoresParaSensores = repository.getTodosLosSectores().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
     val cultivos = repository.getCultivos().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -145,19 +151,26 @@ class ProblemasViewModel(private val repository: HuertaRepository) : ViewModel()
     fun cambiarEstadoReporte(reporte: ReporteProblemaEntity, nuevoEstado: EstadoProblema, comentarioDocente: String?, usuarioId: Long) {
         if (!esAdministradorAutenticado(usuarioId))return
         viewModelScope.launch {
-            val reporteActualizado = reporte.copy(
-                estado = nuevoEstado,
-                comentarioDocente = comentarioDocente ?: reporte.comentarioDocente,
-                fechaAtencion = System.currentTimeMillis()
-            )
-            repository.updateReporte(reporteActualizado)
-            repository.registrarHistorial(
-                tipoEntidad = "PROBLEMA",
-                entidadId = reporte.id,
-                accion = "CAMBIO_ESTADO",
-                descripcion = "Estado del reporte de problema cambiado a ${nuevoEstado.titulo}.",
-                usuarioId = usuarioId
-            )
+            try {
+                val reporteActualizado = reporte.copy(
+                    estado = nuevoEstado,
+                    comentarioDocente = comentarioDocente ?: reporte.comentarioDocente,
+                    fechaAtencion = System.currentTimeMillis()
+                )
+                repository.updateReporte(reporteActualizado)
+                repository.registrarHistorial(
+                    tipoEntidad = "PROBLEMA",
+                    entidadId = reporte.id,
+                    accion = "CAMBIO_ESTADO",
+                    descripcion = "Estado del reporte de problema cambiado a ${nuevoEstado.titulo}.",
+                    usuarioId = usuarioId
+                )
+                _formState.update { it.copy(generalError = null) }
+            } catch (error: Exception) {
+                _formState.update {
+                    it.copy(generalError = "No se pudo actualizar el reporte: ${error.message ?: "error desconocido"}")
+                }
+            }
         }
     }
 

@@ -178,6 +178,15 @@ fun CultivoFormScreen(
                 .verticalScroll(rememberScrollState())
                 .animateContentSize()
         ) {
+            formState.generalError?.let { message ->
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
+
             OutlinedTextField(
                 value = formState.nombre,
                 onValueChange = { viewModel.onNombreChanged(it) },
@@ -382,6 +391,7 @@ fun CultivoFormScreen(
                         viewModel.guardarCultivo(userId)
                     }
                 },
+                enabled = !formState.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),

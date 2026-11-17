@@ -25,6 +25,8 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
     private var activeFormId: Long? = null
     private var activeDeliveryTaskId: Long? = null
     private var activeReviewTaskId: Long? = null
+    private val _actionError = MutableStateFlow<String?>(null)
+    val actionError: StateFlow<String?> = _actionError.asStateFlow()
 
     private fun esAdministradorAutenticado(usuarioId: Long): Boolean{
         val usuario = UserSessionManager.currentUser.value ?: return false
@@ -223,19 +225,28 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
             tarea.estado != EstadoTarea.PENDIENTE
         )return
         viewModelScope.launch {
-            val tareaActualizada = tarea.copy(
-                estado = EstadoTarea.EN_DESARROLLO,
-                fechaRealizacion = System.currentTimeMillis()
-            )
-            repository.updateTarea(tareaActualizada)
-            repository.registrarHistorial(
-                tipoEntidad = "TAREA",
-                entidadId = tarea.id,
-                accion = "INICIAR",
-                descripcion = "Estudiante inició la tarea '${tarea.tipo.titulo}'.",
-                usuarioId = usuarioId
-            )
+            try {
+                val tareaActualizada = tarea.copy(
+                    estado = EstadoTarea.EN_DESARROLLO,
+                    fechaRealizacion = System.currentTimeMillis()
+                )
+                repository.updateTarea(tareaActualizada)
+                repository.registrarHistorial(
+                    tipoEntidad = "TAREA",
+                    entidadId = tarea.id,
+                    accion = "INICIAR",
+                    descripcion = "Estudiante inició la tarea '${tarea.tipo.titulo}'.",
+                    usuarioId = usuarioId
+                )
+                _actionError.value = null
+            } catch (error: Exception) {
+                _actionError.value = "No se pudo iniciar la tarea: ${error.message ?: "error desconocido"}"
+            }
         }
+    }
+
+    fun limpiarErrorAccion() {
+        _actionError.value = null
     }
 
     fun cargarTareaParaEntrega(tareaId: Long) {
@@ -274,11 +285,16 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
         }
 
         if (!esColaboradorAsignado(tarea, usuarioId) ||
-            (tarea.estado != EstadoTarea.EN_DESARROLLO &&
-                tarea.estado != EstadoTarea.RECHAZADA)
+            tarea.estado != EstadoTarea.EN_DESARROLLO
         ) {
             _deliveryState.update {
-                it.copy(generalError = "No puedes entregar esta tarea en su estado actual")
+                it.copy(
+                    generalError = if (tarea.estado == EstadoTarea.RECHAZADA) {
+                        "La API no permite reenviar una tarea rechazada; solicita revisión a tu administrador"
+                    } else {
+                        "No puedes entregar esta tarea en su estado actual"
+                    }
+                )
             }
             return
         }
@@ -336,21 +352,34 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
         )return
         viewModelScope.launch {
             _reviewState.update { it.copy(isLoading = true) }
-            val tareaActualizada = tarea.copy(
-                estado = EstadoTarea.VALIDADA,
-                comentarioDocente = _reviewState.value.comentarioDocente.ifBlank { "Trabajo validado correctamente." },
-                fechaValidacion = System.currentTimeMillis(),
-                docenteValidadorId = docenteId
-            )
-            repository.updateTarea(tareaActualizada)
-            repository.registrarHistorial(
-                tipoEntidad = "TAREA",
-                entidadId = tarea.id,
-                accion = "VALIDAR",
-                descripcion = "Docente aprobó la tarea '${tarea.tipo.titulo}'.",
-                usuarioId = docenteId
-            )
-            _reviewState.update { it.copy(isLoading = false, isReviewed = true) }
+            try {
+                val tareaActualizada = tarea.copy(
+                    estado = EstadoTarea.VALIDADA,
+                    comentarioDocente = _reviewState.value.comentarioDocente.ifBlank {
+                        "Trabajo validado correctamente."
+                    },
+                    fechaValidacion = System.currentTimeMillis(),
+                    docenteValidadorId = docenteId
+                )
+                repository.updateTarea(tareaActualizada)
+                repository.registrarHistorial(
+                    tipoEntidad = "TAREA",
+                    entidadId = tarea.id,
+                    accion = "VALIDAR",
+                    descripcion = "Docente aprobó la tarea '${tarea.tipo.titulo}'.",
+                    usuarioId = docenteId
+                )
+                _reviewState.update {
+                    it.copy(isLoading = false, isReviewed = true, generalError = null)
+                }
+            } catch (error: Exception) {
+                _reviewState.update {
+                    it.copy(
+                        isLoading = false,
+                        generalError = "No se pudo validar la tarea: ${error.message ?: "error desconocido"}"
+                    )
+                }
+            }
         }
     }
 
@@ -367,21 +396,32 @@ class TareasViewModel(private val repository: HuertaRepository) : ViewModel() {
         )return
         viewModelScope.launch {
             _reviewState.update { it.copy(isLoading = true) }
-            val tareaActualizada = tarea.copy(
-                estado = EstadoTarea.RECHAZADA,
-                comentarioDocente = motivo,
-                fechaValidacion = System.currentTimeMillis(),
-                docenteValidadorId = docenteId
-            )
-            repository.updateTarea(tareaActualizada)
-            repository.registrarHistorial(
-                tipoEntidad = "TAREA",
-                entidadId = tarea.id,
-                accion = "RECHAZAR",
-                descripcion = "Docente rechazó la tarea '${tarea.tipo.titulo}' por motivo: $motivo",
-                usuarioId = docenteId
-            )
-            _reviewState.update { it.copy(isLoading = false, isReviewed = true) }
+            try {
+                val tareaActualizada = tarea.copy(
+                    estado = EstadoTarea.RECHAZADA,
+                    comentarioDocente = motivo,
+                    fechaValidacion = System.currentTimeMillis(),
+                    docenteValidadorId = docenteId
+                )
+                repository.updateTarea(tareaActualizada)
+                repository.registrarHistorial(
+                    tipoEntidad = "TAREA",
+                    entidadId = tarea.id,
+                    accion = "RECHAZAR",
+                    descripcion = "Docente rechazó la tarea '${tarea.tipo.titulo}' por motivo: $motivo",
+                    usuarioId = docenteId
+                )
+                _reviewState.update {
+                    it.copy(isLoading = false, isReviewed = true, generalError = null)
+                }
+            } catch (error: Exception) {
+                _reviewState.update {
+                    it.copy(
+                        isLoading = false,
+                        generalError = "No se pudo rechazar la tarea: ${error.message ?: "error desconocido"}"
+                    )
+                }
+            }
         }
     }
 

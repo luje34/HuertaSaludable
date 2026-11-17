@@ -42,7 +42,7 @@ fun SensoresScreen(
     onBackClick: () -> Unit
 ) {
     val lecturas by viewModel.lecturas.collectAsState()
-    val sectores by viewModel.sectores.collectAsState()
+    val sectores by viewModel.sectoresParaSensores.collectAsState()
 
     Scaffold(
         topBar = {

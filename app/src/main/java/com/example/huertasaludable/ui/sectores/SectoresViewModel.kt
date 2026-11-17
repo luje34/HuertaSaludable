@@ -118,27 +118,35 @@ class SectoresViewModel(private val repository: HuertaRepository) : ViewModel() 
                 responsableId = usuarioId
             )
 
-            if (state.id == 0L) {
-                val newId = repository.insertSector(sector)
-                repository.registrarHistorial(
-                    tipoEntidad = "SECTOR",
-                    entidadId = newId,
-                    accion = "CREAR",
-                    descripcion = "Sector '$nombre' ($codigo) creado.",
-                    usuarioId = usuarioId
-                )
-            } else {
-                repository.updateSector(sector)
-                repository.registrarHistorial(
-                    tipoEntidad = "SECTOR",
-                    entidadId = state.id,
-                    accion = "ACTUALIZAR",
-                    descripcion = "Sector '$nombre' ($codigo) actualizado.",
-                    usuarioId = usuarioId
-                )
+            try {
+                if (state.id == 0L) {
+                    val newId = repository.insertSector(sector)
+                    repository.registrarHistorial(
+                        tipoEntidad = "SECTOR",
+                        entidadId = newId,
+                        accion = "CREAR",
+                        descripcion = "Sector '$nombre' ($codigo) creado.",
+                        usuarioId = usuarioId
+                    )
+                } else {
+                    repository.updateSector(sector)
+                    repository.registrarHistorial(
+                        tipoEntidad = "SECTOR",
+                        entidadId = state.id,
+                        accion = "ACTUALIZAR",
+                        descripcion = "Sector '$nombre' ($codigo) actualizado.",
+                        usuarioId = usuarioId
+                    )
+                }
+                _formState.update { it.copy(isLoading = false, isSaved = true, generalError = null) }
+            } catch (error: Exception) {
+                _formState.update {
+                    it.copy(
+                        isLoading = false,
+                        generalError = "No se pudo guardar el sector: ${error.message ?: "error desconocido"}"
+                    )
+                }
             }
-
-            _formState.update { it.copy(isLoading = false, isSaved = true) }
         }
     }
 
@@ -150,15 +158,22 @@ class SectoresViewModel(private val repository: HuertaRepository) : ViewModel() 
     fun cambiarEstadoSector(sector: SectorEntity, nuevoEstado: EstadoSector, usuarioId: Long) {
         if (!esAdministradorAutenticado(usuarioId)) return
         viewModelScope.launch {
-            val sectorActualizado = sector.copy(estado = nuevoEstado)
-            repository.updateSector(sectorActualizado)
-            repository.registrarHistorial(
-                tipoEntidad = "SECTOR",
-                entidadId = sector.id,
-                accion = "CAMBIO_ESTADO",
-                descripcion = "Estado del sector '${sector.nombre}' cambiado a ${nuevoEstado.titulo}.",
-                usuarioId = usuarioId
-            )
+            try {
+                val sectorActualizado = sector.copy(estado = nuevoEstado)
+                repository.updateSector(sectorActualizado)
+                repository.registrarHistorial(
+                    tipoEntidad = "SECTOR",
+                    entidadId = sector.id,
+                    accion = "CAMBIO_ESTADO",
+                    descripcion = "Estado del sector '${sector.nombre}' cambiado a ${nuevoEstado.titulo}.",
+                    usuarioId = usuarioId
+                )
+                _formState.update { it.copy(generalError = null) }
+            } catch (error: Exception) {
+                _formState.update {
+                    it.copy(generalError = "No se pudo actualizar el sector: ${error.message ?: "error desconocido"}")
+                }
+            }
         }
     }
 

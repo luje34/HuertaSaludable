@@ -1,30 +1,36 @@
 package com.example.huertasaludable.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Update
+import androidx.room.Upsert
 import com.example.huertasaludable.data.local.entity.UsuarioEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UsuarioDao {
-    @Query("SELECT * FROM usuarios ORDER BY nombre ASC")
+    @Query("SELECT * FROM usuarios WHERE synchronizedWithApi = 1 ORDER BY nombre ASC")
     fun getUsuarios(): Flow<List<UsuarioEntity>>
 
-    @Query("SELECT * FROM usuarios WHERE id = :id")
+    @Query("SELECT * FROM usuarios WHERE id = :id AND synchronizedWithApi = 1")
     fun getUsuarioById(id: Long): Flow<UsuarioEntity?>
 
-    @Query("SELECT * FROM usuarios WHERE email = :email LIMIT 1")
-    suspend fun getUsuarioByEmail(email: String): UsuarioEntity?
+    @Query("UPDATE usuarios SET synchronizedWithApi = 0")
+    suspend fun markAllAsLocal()
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertUsuario(usuario: UsuarioEntity): Long
+    @Query(
+        """
+        DELETE FROM usuarios
+        WHERE synchronizedWithApi = 0
+          AND id NOT IN (SELECT usuarioId FROM historial_actividades)
+          AND id NOT IN (SELECT responsableId FROM sectores WHERE responsableId IS NOT NULL)
+          AND id NOT IN (SELECT estudianteId FROM tareas WHERE estudianteId IS NOT NULL)
+          AND id NOT IN (SELECT docenteCreadorId FROM tareas)
+          AND id NOT IN (SELECT docenteValidadorId FROM tareas WHERE docenteValidadorId IS NOT NULL)
+          AND id NOT IN (SELECT usuarioReportadorId FROM reportes_problemas)
+        """
+    )
+    suspend fun deleteUnusedLocalUsers()
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertUsuarios(usuarios: List<UsuarioEntity>)
-
-    @Update
-    suspend fun updateUsuario(usuario: UsuarioEntity)
+    @Upsert
+    suspend fun upsertUsuarios(usuarios: List<UsuarioEntity>)
 }

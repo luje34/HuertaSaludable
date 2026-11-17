@@ -2,11 +2,8 @@ package com.example.huertasaludable.ui.auth
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,7 +26,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,9 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.huertasaludable.data.local.entity.UsuarioEntity
-import kotlin.math.sin
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel,
@@ -67,6 +61,7 @@ fun LoginScreen(
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var creandoCuenta by rememberSaveable { mutableStateOf(false) }
     var nombre by rememberSaveable { mutableStateOf("") }
+    var tallerGrupo by rememberSaveable { mutableStateOf("Taller Escolar") }
 
     LaunchedEffect(uiState.isSuccess, uiState.usuarioLogueado) {
         if (uiState.isSuccess && uiState.usuarioLogueado != null) {
@@ -154,6 +149,14 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = tallerGrupo,
+                        onValueChange = { tallerGrupo = it },
+                        label = { Text("Taller o grupo") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 // Campo Email
@@ -237,7 +240,8 @@ fun LoginScreen(
                             viewModel.registrarColaborador(
                                 nombre = nombre,
                                 email = uiState.email,
-                                password = uiState.password
+                                password = uiState.password,
+                                tallerGrupo = tallerGrupo
                             )
                         } else {
                             viewModel.iniciarSesion()
@@ -272,46 +276,6 @@ fun LoginScreen(
                     Text(
                         if (creandoCuenta) "Ya tengo cuenta: iniciar sesión"
                         else "¿No tienes cuenta? Crear cuenta"
-                    )
-                }
-
-
-                // Atajos Cuentas de Prueba
-                Text(
-                    text = "Cuentas de Prueba (1 clic):",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    FilterChip(
-                        selected = false,
-                        onClick = { viewModel.seleccionarCuentaPrueba("docente@huerta.cl") },
-                        label = { Text("👨‍🏫 Docente (Admin)") }
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    FilterChip(
-                        selected = false,
-                        onClick = { viewModel.seleccionarCuentaPrueba("estudiante1@huerta.cl") },
-                        label = { Text("👩‍🎓 Camila (Estudiante)") }
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    FilterChip(
-                        selected = false,
-                        onClick = { viewModel.seleccionarCuentaPrueba("estudiante2@huerta.cl") },
-                        label = { Text("👨‍🎓 Mateo (Estudiante)") }
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    FilterChip(
-                        selected = false,
-                        onClick = { viewModel.seleccionarCuentaPrueba("estudiante3@huerta.cl") },
-                        label = { Text("👩‍🎓 Sofía (Estudiante)") }
                     )
                 }
             }

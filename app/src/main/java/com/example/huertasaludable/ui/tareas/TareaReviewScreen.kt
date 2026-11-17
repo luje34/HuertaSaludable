@@ -1,5 +1,6 @@
 package com.example.huertasaludable.ui.tareas
 
+import android.widget.Toast
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +36,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +56,7 @@ fun TareaReviewScreen(
     onBackClick: () -> Unit
 ) {
     val reviewState by viewModel.reviewState.collectAsState()
+    val context = LocalContext.current
     val tareas by viewModel.tareas.collectAsState()
     val usuarios by viewModel.usuarios.collectAsState()
     val currentUser by UserSessionManager.currentUser.collectAsState()
@@ -62,6 +66,12 @@ fun TareaReviewScreen(
 
     LaunchedEffect(tareaId) {
         viewModel.cargarTareaParaRevision(tareaId)
+    }
+
+    LaunchedEffect(reviewState.generalError) {
+        reviewState.generalError?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+        }
     }
 
     LaunchedEffect(reviewState.isReviewed) {
@@ -194,6 +204,7 @@ fun TareaReviewScreen(
                                 viewModel.rechazarTarea(tarea, docenteId)
                             }
                         },
+                        enabled = !reviewState.isLoading,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier
                             .weight(1f)
@@ -208,6 +219,7 @@ fun TareaReviewScreen(
                                 viewModel.aprobarTarea(tarea, docenteId)
                             }
                         },
+                        enabled = !reviewState.isLoading,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         modifier = Modifier
                             .weight(1f)

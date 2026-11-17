@@ -56,10 +56,12 @@ import android.widget.Toast
 
 
 private fun aFechaPicker(fechaLocal: Long): Long {
-    val local = Calendar.getInstance().apply { timeInMillis = fechaLocal }
+    val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        timeInMillis = fechaLocal
+    }
     return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
         clear()
-        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH))
+        set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH), utc.get(Calendar.DAY_OF_MONTH))
     }.timeInMillis
 }
 
@@ -67,7 +69,7 @@ private fun desdeFechaPicker(fechaUtc: Long): Long {
     val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
         timeInMillis = fechaUtc
     }
-    return Calendar.getInstance().apply {
+    return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
         clear()
         set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH), utc.get(Calendar.DAY_OF_MONTH))
     }.timeInMillis
@@ -88,7 +90,7 @@ fun TareaFormScreen(
     val cultivos by viewModel.cultivos.collectAsState()
     val currentUser by UserSessionManager.currentUser.collectAsState()
 
-    val estudiantes = usuarios.filter { it.rol == Rol.COLABORADOR }
+    val estudiantes = usuarios.filter { it.rol == Rol.COLABORADOR && it.activo }
 
     var tipoDropdownExpanded by remember { mutableStateOf(false) }
     var estudianteDropdownExpanded by remember { mutableStateOf(false) }
@@ -194,7 +196,11 @@ fun TareaFormScreen(
                 onClick = { mostrarSelectorFecha = true },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                val formato = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+                val formato = remember {
+                    SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+                        timeZone = TimeZone.getTimeZone("UTC")
+                    }
+                }
                 Text("Fecha programada: ${formato.format(Date(formState.fechaProgramada))}")
             }
 

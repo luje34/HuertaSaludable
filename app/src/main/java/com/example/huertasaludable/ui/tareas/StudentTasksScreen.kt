@@ -30,6 +30,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,9 +39,12 @@ import androidx.compose.ui.unit.dp
 import com.example.huertasaludable.data.local.entity.TareaEntity
 import com.example.huertasaludable.data.model.EstadoTarea
 import com.example.huertasaludable.session.UserSessionManager
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +55,15 @@ fun StudentTasksScreen(
 ) {
     val tareas by viewModel.tareas.collectAsState()
     val currentUser by UserSessionManager.currentUser.collectAsState()
+    val actionError by viewModel.actionError.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(actionError) {
+        actionError?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.limpiarErrorAccion()
+        }
+    }
 
     val misTareas = tareas.filter { it.estudianteId == currentUser?.id }
 
@@ -114,7 +127,9 @@ fun StudentTareaCard(
     onStartTask: () -> Unit,
     onDeliverTask: () -> Unit
 ) {
-    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
 
     Card(
         modifier = Modifier
@@ -198,13 +213,21 @@ fun StudentTareaCard(
                             Text("Iniciar Tarea")
                         }
                     }
-                    EstadoTarea.EN_DESARROLLO, EstadoTarea.RECHAZADA -> {
+                    EstadoTarea.EN_DESARROLLO -> {
                         Button(
                             onClick = onDeliverTask,
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Text("Entregar Evidencia")
                         }
+                    }
+                    EstadoTarea.RECHAZADA -> {
+                        Text(
+                            text = "Contacta a tu administrador; la API no permite reenviar una tarea rechazada.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                     EstadoTarea.PENDIENTE_VALIDACION -> {
                         Text(

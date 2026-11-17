@@ -53,6 +53,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.FilterChip
 import java.util.Calendar
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,7 +74,7 @@ fun TareasListScreen(
     var selectedDateFilter by remember { mutableStateOf("Todas") }
 
     val inicioHoy = remember {
-        Calendar.getInstance().apply {
+        Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
@@ -81,13 +82,13 @@ fun TareasListScreen(
         }.timeInMillis
     }
     val inicioManana = remember(inicioHoy) {
-        Calendar.getInstance().apply {
+        Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
             timeInMillis = inicioHoy
             add(Calendar.DAY_OF_YEAR, 1)
         }.timeInMillis
     }
     val inicioEnSieteDias = remember(inicioHoy) {
-        Calendar.getInstance().apply {
+        Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
             timeInMillis = inicioHoy
             add(Calendar.DAY_OF_YEAR, 7)
         }.timeInMillis
@@ -167,7 +168,7 @@ fun TareasListScreen(
                             )
                         }
 
-                        items(usuarios.filter { it.rol == Rol.COLABORADOR }) { estudiante ->
+                        items(usuarios.filter { it.rol == Rol.COLABORADOR && it.activo }) { estudiante ->
                             FilterChip(
                                 selected = selectedStudentId == estudiante.id,
                                 onClick = { selectedStudentId = estudiante.id },
@@ -243,7 +244,9 @@ fun TareaCard(
     estudiante: UsuarioEntity?,
     onClick: () -> Unit
 ) {
-    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
     val badgeBg = when (tarea.estado) {
         EstadoTarea.PENDIENTE -> MaterialTheme.colorScheme.surfaceVariant
         EstadoTarea.EN_DESARROLLO -> MaterialTheme.colorScheme.primaryContainer

@@ -159,27 +159,35 @@ class CultivosViewModel(private val repository: HuertaRepository) : ViewModel() 
                 fotografiaUri = state.fotografiaUri
             )
 
-            if (state.id == 0L) {
-                val newId = repository.insertCultivo(cultivo)
-                repository.registrarHistorial(
-                    tipoEntidad = "CULTIVO",
-                    entidadId = newId,
-                    accion = "CREAR",
-                    descripcion = "Cultivo '$nombre' registrado.",
-                    usuarioId = usuarioId
-                )
-            } else {
-                repository.updateCultivo(cultivo)
-                repository.registrarHistorial(
-                    tipoEntidad = "CULTIVO",
-                    entidadId = state.id,
-                    accion = "ACTUALIZAR",
-                    descripcion = "Cultivo '$nombre' actualizado.",
-                    usuarioId = usuarioId
-                )
+            try {
+                if (state.id == 0L) {
+                    val newId = repository.insertCultivo(cultivo)
+                    repository.registrarHistorial(
+                        tipoEntidad = "CULTIVO",
+                        entidadId = newId,
+                        accion = "CREAR",
+                        descripcion = "Cultivo '$nombre' registrado.",
+                        usuarioId = usuarioId
+                    )
+                } else {
+                    repository.updateCultivo(cultivo)
+                    repository.registrarHistorial(
+                        tipoEntidad = "CULTIVO",
+                        entidadId = state.id,
+                        accion = "ACTUALIZAR",
+                        descripcion = "Cultivo '$nombre' actualizado.",
+                        usuarioId = usuarioId
+                    )
+                }
+                _formState.update { it.copy(isLoading = false, isSaved = true, generalError = null) }
+            } catch (error: Exception) {
+                _formState.update {
+                    it.copy(
+                        isLoading = false,
+                        generalError = "No se pudo guardar el cultivo: ${error.message ?: "error desconocido"}"
+                    )
+                }
             }
-
-            _formState.update { it.copy(isLoading = false, isSaved = true) }
         }
     }
 

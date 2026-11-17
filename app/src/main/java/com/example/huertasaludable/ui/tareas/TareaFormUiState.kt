@@ -35,5 +35,6 @@ data class TareaReviewUiState(
     val comentarioDocente: String = "",
     val motivoRechazoError: String? = null,
     val isLoading: Boolean = false,
-    val isReviewed: Boolean = false
+    val isReviewed: Boolean = false,
+    val generalError: String? = null
 )
