@@ -41,6 +41,7 @@ import com.example.huertasaludable.session.UserSessionManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +58,9 @@ fun CultivoDetailScreen(
 
     val cultivo = cultivos.find { it.id == cultivoId }
     val sector = sectores.find { it.id == cultivo?.sectorId }
-    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
 
     Scaffold(
         topBar = {

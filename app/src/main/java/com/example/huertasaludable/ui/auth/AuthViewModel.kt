@@ -3,7 +3,6 @@ package com.example.huertasaludable.ui.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.huertasaludable.data.local.entity.UsuarioEntity
 import com.example.huertasaludable.data.repository.HuertaRepository
 import com.example.huertasaludable.session.UserSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,8 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import com.example.huertasaludable.data.model.Rol
 import android.util.Patterns
+import com.example.huertasaludable.data.local.entity.UsuarioEntity
 
 data class LoginUiState(
     val email: String = "",
@@ -31,6 +30,8 @@ class AuthViewModel(private val repository: HuertaRepository) : ViewModel() {
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
     fun limpiarEstadoSesion() {
+        repository.logout()
+        UserSessionManager.logout()
         _uiState.value = LoginUiState()
     }
 
@@ -54,22 +55,9 @@ class AuthViewModel(private val repository: HuertaRepository) : ViewModel() {
         }
     }
 
-    fun seleccionarCuentaPrueba(emailPrueba: String, passwordPrueba: String = "123") {
-        _uiState.update {
-            it.copy(
-                email = emailPrueba,
-                password = passwordPrueba,
-                emailError = null,
-                passwordError = null,
-                generalError = null
-            )
-        }
-        iniciarSesion()
-    }
-
     fun iniciarSesion() {
         val email = _uiState.value.email.trim()
-        val password = _uiState.value.password.trim()
+        val password = _uiState.value.password
 
         var hasError = false
         if (email.isBlank()) {
@@ -85,30 +73,8 @@ class AuthViewModel(private val repository: HuertaRepository) : ViewModel() {
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, generalError = null) }
-            val usuario = repository.getUsuarioByEmail(email)
-
-            if (usuario == null) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        generalError = "No existe una cuenta registrada con este correo"
-                    )
-                }
-            } else if (usuario.password != password) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        generalError = "Contraseña incorrecta. Inténtalo de nuevo"
-                    )
-                }
-            } else if (!usuario.activo) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        generalError = "Esta cuenta se encuentra desactivada"
-                    )
-                }
-            } else {
+            try {
+                val usuario = repository.login(email, password)
                 UserSessionManager.login(usuario)
                 _uiState.update {
                     it.copy(
@@ -117,15 +83,30 @@ class AuthViewModel(private val repository: HuertaRepository) : ViewModel() {
                         usuarioLogueado = usuario
                     )
                 }
+            } catch (error: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        generalError = error.message ?: "No se pudo iniciar sesión con la API"
+                    )
+                }
             }
         }
     }
-    fun registrarColaborador(nombre: String, email: String, password: String){
+    fun registrarColaborador(
+        nombre: String,
+        email: String,
+        password: String,
+        tallerGrupo: String
+    ) {
         val nombreLimpio = nombre.trim()
         val emailLimpio = email.trim()
-        val passwordLimpia = password.trim()
+        val tallerGrupoLimpio = tallerGrupo.trim()
 
-        if (nombreLimpio.isBlank() ||emailLimpio.isBlank() || passwordLimpia.isBlank()){
+        if (
+            nombreLimpio.isBlank() || emailLimpio.isBlank() ||
+            password.isBlank() || tallerGrupoLimpio.isBlank()
+        ) {
             _uiState.update {
                 it.copy(
                     generalError = "Completa todos los campos",
@@ -145,38 +126,29 @@ class AuthViewModel(private val repository: HuertaRepository) : ViewModel() {
         }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, generalError = null) }
-
-            val usuarioExistente = repository.getUsuarioByEmail(emailLimpio)
-
-            if (usuarioExistente != null) {
+            try {
+                val usuarioRegistrado = repository.register(
+                    nombre = nombreLimpio,
+                    email = emailLimpio,
+                    password = password,
+                    tallerGrupo = tallerGrupoLimpio
+                )
+                UserSessionManager.login(usuarioRegistrado)
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        generalError = "Ya existe una cuenta con ese correo"
+                        isSuccess = true,
+                        usuarioLogueado = usuarioRegistrado,
+                        generalError = null
                     )
                 }
-                return@launch
-            }
-
-            val nuevoUsuario = UsuarioEntity(
-                nombre = nombreLimpio,
-                email = emailLimpio,
-                password = passwordLimpia,
-                rol = Rol.COLABORADOR,
-                tallerGrupo = "Taller Escolar"
-            )
-
-            val nuevoId = repository.insertUsuario(nuevoUsuario)
-            val usuarioRegistrado = nuevoUsuario.copy(id = nuevoId)
-
-            UserSessionManager.login(usuarioRegistrado)
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    isSuccess = true,
-                    usuarioLogueado = usuarioRegistrado,
-                    generalError = null
-                )
+            } catch (error: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        generalError = error.message ?: "No se pudo crear la cuenta con la API"
+                    )
+                }
             }
         }
     }

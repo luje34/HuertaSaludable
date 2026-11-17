@@ -1,5 +1,6 @@
 package com.example.huertasaludable.ui.problemas
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +45,7 @@ import com.example.huertasaludable.session.UserSessionManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,7 +55,15 @@ fun ProblemasListScreen(
 ) {
     val reportes by viewModel.reportes.collectAsState()
     val currentUser by UserSessionManager.currentUser.collectAsState()
+    val formState by viewModel.formState.collectAsState()
+    val context = LocalContext.current
     val isAdmin = currentUser?.rol == Rol.ADMIN
+
+    LaunchedEffect(formState.generalError) {
+        formState.generalError?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -119,7 +131,9 @@ fun ReporteCard(
     onAtenderClick: () -> Unit,
     onCerrarClick: () -> Unit
 ) {
-    val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
 
     Card(
         modifier = Modifier

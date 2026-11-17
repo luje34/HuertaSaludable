@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 import com.example.huertasaludable.data.local.entity.TareaEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -31,4 +32,13 @@ interface TareaDao {
 
     @Delete
     suspend fun deleteTarea(tarea: TareaEntity)
+
+    @Query("DELETE FROM tareas")
+    suspend fun deleteAll()
+
+    @Upsert
+    suspend fun upsertTarea(tarea: TareaEntity)
+
+    @Upsert
+    suspend fun upsertTareas(tareas: List<TareaEntity>)
 }

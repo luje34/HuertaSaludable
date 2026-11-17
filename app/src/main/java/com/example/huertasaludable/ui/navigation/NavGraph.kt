@@ -14,7 +14,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.huertasaludable.data.model.Rol
 import com.example.huertasaludable.data.repository.HuertaRepository
-import com.example.huertasaludable.session.UserSessionManager
 import com.example.huertasaludable.ui.auth.AuthViewModel
 import com.example.huertasaludable.ui.auth.LoginScreen
 import com.example.huertasaludable.ui.cultivos.CultivoDetailScreen
@@ -107,7 +106,6 @@ fun NavGraph(
                 onNavigateToHistorial = { navController.navigate(Screen.Historial.route) },
                 onLogout = {
                     authViewModel.limpiarEstadoSesion()
-                    UserSessionManager.logout()
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.AdminDashboard.route) { inclusive = true }
                         launchSingleTop = true
@@ -122,7 +120,6 @@ fun NavGraph(
                 onNavigateToReportarProblema = { navController.navigate(Screen.ReportarProblema.route) },
                 onLogout = {
                     authViewModel.limpiarEstadoSesion()
-                    UserSessionManager.logout()
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.StudentDashboard.route) { inclusive = true }
                         launchSingleTop = true

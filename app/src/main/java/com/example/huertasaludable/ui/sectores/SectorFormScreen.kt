@@ -103,6 +103,15 @@ fun SectorFormScreen(
                 .verticalScroll(rememberScrollState())
                 .animateContentSize()
         ) {
+            formState.generalError?.let { message ->
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
+
             OutlinedTextField(
                 value = formState.codigo,
                 onValueChange = { viewModel.onCodigoChanged(it) },
@@ -212,6 +221,7 @@ fun SectorFormScreen(
                         viewModel.guardarSector(userId)
                     }
                 },
+                enabled = !formState.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),

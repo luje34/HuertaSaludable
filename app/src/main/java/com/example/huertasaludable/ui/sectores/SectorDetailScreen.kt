@@ -50,6 +50,7 @@ fun SectorDetailScreen(
 ) {
     val sectores by viewModel.sectores.collectAsState()
     val cultivos by viewModel.cultivos.collectAsState()
+    val formState by viewModel.formState.collectAsState()
     val currentUser by UserSessionManager.currentUser.collectAsState()
     val isAdmin = currentUser?.rol == Rol.ADMIN
 
@@ -86,6 +87,14 @@ fun SectorDetailScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
+                formState.generalError?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
                 Text("Sector no encontrado")
             }
         } else {

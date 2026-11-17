@@ -18,6 +18,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        val apiBaseUrl = providers.gradleProperty("huertaApiBaseUrl")
+            .orElse(providers.environmentVariable("HUERTA_API_BASE_URL"))
+            .getOrElse("http://10.0.2.2:8080/")
+        buildConfigField("String", "HUERTA_API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     buildTypes {
@@ -31,9 +35,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -50,6 +56,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.coil.compose)
+    implementation(libs.okhttp)
+    implementation(libs.gson)
 
     // Room
     implementation(libs.androidx.room.runtime)
@@ -57,6 +65,8 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
+    testImplementation(libs.okhttp.mockwebserver)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

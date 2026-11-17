@@ -1,6 +1,7 @@
 package com.example.huertasaludable.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -27,5 +28,7 @@ data class SectorEntity(
     val ubicacion: String,
     val estado: EstadoSector,
     val responsableId: Long? = null,
-    val fechaCreacion: Long = System.currentTimeMillis()
+    val fechaCreacion: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0")
+    val synchronizedWithApi: Boolean = false
 )

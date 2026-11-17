@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 import com.example.huertasaludable.data.local.entity.CultivoEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -31,4 +32,13 @@ interface CultivoDao {
 
     @Delete
     suspend fun deleteCultivo(cultivo: CultivoEntity)
+
+    @Query("DELETE FROM cultivos")
+    suspend fun deleteAll()
+
+    @Upsert
+    suspend fun upsertCultivo(cultivo: CultivoEntity)
+
+    @Upsert
+    suspend fun upsertCultivos(cultivos: List<CultivoEntity>)
 }
