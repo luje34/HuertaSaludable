@@ -24,8 +24,18 @@ android {
         buildConfigField("String", "HUERTA_API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
+    signingConfigs {
+        create("huerta") {
+            storeFile = rootProject.file("llavehuerta.jks")
+            storePassword = "huertasaludable"
+            keyAlias = "llavehuerta"
+            keyPassword = "huertasaludable"
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("huerta")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
