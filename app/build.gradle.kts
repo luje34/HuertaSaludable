@@ -69,6 +69,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.gson)
 
+    // Retrofit
+    implementation(libs.retrofit)
+    implementation(libs.converter.gson)
+
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
